@@ -1,0 +1,83 @@
+const express = require('express');
+const dotenv = require('dotenv');
+const webpush = require('web-push');
+const cookieParser = require('cookie-parser');
+const cors = require('cors');
+const morgan = require('morgan');
+dotenv.config();
+const app = express();
+
+
+const PORT = process.env.PORT || 10000;
+
+const allowedOrigins = [
+  "https://gametrack-sigma.vercel.app",
+  "https://gametrack-lhzg92l2o-shravans-projects-00476bc1.vercel.app",
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "https://www.gametrack.in",
+  "https://gametrack-admin.vercel.app",
+  "https://gametrack-admin-shravans-projects-00476bc1.vercel.app"
+ 
+  
+];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (allowedOrigins.includes(origin) || !origin || origin === "https://gametrack-admin.vercel.app") {
+      callback(null, true);
+    } else {
+      console.log("⛔ Blocked by CORS:", origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+};
+app.use(cors(corsOptions));
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+app.use(morgan('dev'));
+
+const connectDB = require('./db/db');
+const userRouter = require('./routes/user-route');
+const verifyRouter = require('./routes/verifyOtp-route');
+const authCheckRouter = require('./routes/authCheck-route');
+const ownerRouter = require('./routes/owner-route');
+const adminRouter = require('./routes/admin-route');
+const turfRouter = require('./routes/turf-route');
+const botRouter = require('./routes/bot-routes');
+const { assertTurfIdConfigured, forceSingleTurf } = require('./controllers/single-turf');
+
+
+
+app.use((req, res, next) => {
+  console.log("🔥 Incoming request from Origin:", req.headers.origin);
+  next();
+});
+
+
+app.get("/", (req, res) => {
+  res.send(" API is live...");
+});
+app.get("/api/ping", (req, res) => res.status(200).send("pong"));
+
+app.use('/otp', verifyRouter);
+// Keep customer and public turf requests pinned to this deployment's configured turf.
+// A host/slug-based resolver can replace this single-tenant guard when tenant domains are configured.
+app.use('/api/users', forceSingleTurf);
+app.use('/api/users', userRouter);
+app.use('/api/auth', authCheckRouter);
+app.use('/api/turfs', forceSingleTurf);
+app.use('/api/turfs', turfRouter);
+app.use('/owner', ownerRouter);
+app.use('/admin', adminRouter);
+app.use('/api/webhooks', botRouter);
+
+app.listen(PORT, () => {
+  
+  console.log(`🌐 Server running on http://localhost:${PORT}`);
+});
+assertTurfIdConfigured(); 
+connectDB();
